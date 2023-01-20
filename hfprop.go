@@ -2,6 +2,7 @@ package hfprop
 
 import (
 	"bufio"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/http"
@@ -23,6 +24,7 @@ var (
 	GiroTimeFormatIn  string = "2006-01-02 15:04:05"
 	GiroTimeFormatOut string = "2006-01-02T15:04:05.000Z"
 	DefaultUrsiCode   string = "JR055"
+	SkipVerifyTLS     bool   = false
 )
 
 // Configure distance for MUF (Maximum Usable Frequency (D)) when requesting the MUFD parameter
@@ -58,10 +60,26 @@ func GetGiroData(parameter string, ursiCode string, from time.Time, to time.Time
 		LgdcKeyToDate:   {to.UTC().Format(GiroTimeFormatIn)},
 	}
 	u.RawQuery = values.Encode()
-	resp, err := http.Get(u.String())
+	transport := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: SkipVerifyTLS},
+	}
+	client := &http.Client{
+		Transport: transport,
+		Timeout:   time.Second * 15,
+	}
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return gds, err
 	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return gds, err
+	}
+
+	// resp, err := http.Get(u.String())
+	// if err != nil {
+	// 	return gds, err
+	// }
 	// body, err := io.ReadAll(resp.Body)
 	// if err != nil {
 	// 	return gds, err
