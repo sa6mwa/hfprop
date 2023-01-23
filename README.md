@@ -1,5 +1,6 @@
 # hfprop
-HF propagation API and CLI utilizing ionosonde data from LGDC - [Lowell's Global Ionosphere Radio Observatory "GIRO" Data Center](https://digisonde.com/digisonde.html#global-section).
+HF propagation API and CLI utilizing ionosonde data from LGDC -
+[Lowell's Global Ionosphere Radio Observatory "GIRO" Data Center](https://digisonde.com/digisonde.html#global-section), specifically [FastChar](https://giro.uml.edu/didbase/scaled.php).
 
 ## Installation
 
