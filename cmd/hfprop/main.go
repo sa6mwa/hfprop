@@ -1,22 +1,30 @@
+/*
+hfprop CLI
+
+# Copyright (c) 2023 SA6MWA Michel
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+*/
 package main
 
-import (
-	"fmt"
-	"log"
-	"time"
-
-	"github.com/sa6mwa/hfprop"
-)
+import "github.com/sa6mwa/hfprop/cmd/hfprop/cmd"
 
 func main() {
-
-	hfprop.SetDistanceForMUF(100.0)
-	gd, err := hfprop.GetGiroData("foF2", "JR055", time.Now().Add(-1*time.Hour), time.Now())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if len(gd) != 0 {
-		fmt.Println(gd[0].Parameter, "=", gd[0].Value)
-	}
+	cmd.Execute()
 }

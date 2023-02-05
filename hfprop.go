@@ -1,3 +1,62 @@
+/*
+hfprop (properties/propagation) is package to access Lowell's DIDBase and query
+for ionogram-derived "characteristics" (parameters/properties) from Lowell
+Digisondes (ionosondes). The package also feature functions to calculate
+take-off angle, distance to a transceiver based on take-off angle, etc using
+values from DIDBase.
+
+See FastChar for more information: https://giro.uml.edu/didbase/scaled.php
+
+There is also a CLI in the hfprop module that you can install by running:
+
+	go install github.com/sa6mwa/hfprop/cmd/hfprop@latest
+
+Binaries usually end-up under ~/go/bin.
+
+Author of hfprop is amateur radio operator SA6MWA Michel Blomgren
+sa6mwa@gmail.com.
+
+The full set of characteristics in DIDBase that can be requested:
+
+	foF2 -- F2 layer critical frequency
+	foF1 -- F1 layer critical frequency
+	foE -- E layer critical frequency
+	foEs -- Es layer critical frequency
+	fbEs -- Blanketing frequency of Es-layer
+	foEa -- Critical frequency of auroral E-layer
+	foP -- Critical frequency of F region patch trace
+	fxI -- Maximum frequency of F trace
+	MUFD -- Maximum usable frequency, 3000 km
+	MD -- MUF(3000)/foF2
+	hF2 -- Minimum virtual height of F2 trace
+	hF -- Minimum virtual height of F trace
+	hE -- Minimum virtual height of E trace
+	hEs -- Minimum virtual height of Es trace
+	hEa -- Minimum virtual height of auroral E trace
+	hP -- Minimum virtual height of F patch trace
+	TypeEs -- Type of Es layer(s)
+	hmF2 -- Peak height F2-layer
+	hmF1 -- Peak height F1-layer
+	hmE -- Peak height of E-layer
+	zhalfNm -- True height at 1/2 NmF2
+	yF2 -- Half thickness of F2-layer
+	yF1 -- Half thickness of F1-layer
+	yE -- Half thickness of E-layer
+	scaleF2 -- Scale height at the F2-peak
+	B0 -- IRI thickness parameter
+	B1 -- IRI profile shape parameter
+	D1 -- IRI profile shape parameter
+	TEC -- Ionogram-derived total electron content
+	FF -- Frequence spread between fxF2 and fxI
+	FE -- Frequence spread beyond foE
+	QF -- Range spread of F-layer
+	QE -- Range spread of E-layer
+	fmin -- Minimum frequency of echoes
+	fminF -- Minimum frequency of F-layer echoes
+	fminE -- Minimum frequency of E-layer echoes
+	fminEs -- Minimum frequency of Es-layer
+	foF2p -- foF2 prediction by IRI no-storm option
+*/
 package hfprop
 
 import (
@@ -12,72 +71,111 @@ import (
 	"time"
 )
 
-/* Characteristics (parameters):
-foF2 -- F2 layer critical frequency
-foF1 -- F1 layer critical frequency
-foE -- E layer critical frequency
-foEs -- Es layer critical frequency
-fbEs -- Blanketing frequency of Es-layer
-foEa -- Critical frequency of auroral E-layer
-foP -- Critical frequency of F region patch trace
-fxI -- Maximum frequency of F trace
-MUFD -- Maximum usable frequency, 3000 km
-MD -- MUF(3000)/foF2
-hF2 -- Minimum virtual height of F2 trace
-hF -- Minimum virtual height of F trace
-hE -- Minimum virtual height of E trace
-hEs -- Minimum virtual height of Es trace
-hEa -- Minimum virtual height of auroral E trace
-hP -- Minimum virtual height of F patch trace
-TypeEs -- Type of Es layer(s)
-hmF2 -- Peak height F2-layer
-hmF1 -- Peak height F1-layer
-hmE -- Peak height of E-layer
-zhalfNm -- True height at 1/2 NmF2
-yF2 -- Half thickness of F2-layer
-yF1 -- Half thickness of F1-layer
-yE -- Half thickness of E-layer
-scaleF2 -- Scale height at the F2-peak
-B0 -- IRI thickness parameter
-B1 -- IRI profile shape parameter
-D1 -- IRI profile shape parameter
-TEC -- Ionogram-derived total electron content
-FF -- Frequence spread between fxF2 and fxI
-FE -- Frequence spread beyond foE
-QF -- Range spread of F-layer
-QE -- Range spread of E-layer
-fmin -- Minimum frequency of echoes
-fminF -- Minimum frequency of F-layer echoes
-fminE -- Minimum frequency of E-layer echoes
-fminEs -- Minimum frequency of Es-layer
-foF2p -- foF2 prediction by IRI no-storm option
-*/
-
 // FastChar: https://giro.uml.edu/didbase/scaled.php
 var (
-	DMUF              string = DefaultDMUF
-	DefaultDMUF       string = "3000"
-	LgdcBaseUrl       string = "https://lgdc.uml.edu/common/DIDBGetValues"
-	LgdcKeyUrsiCode   string = "ursiCode"
-	LgdcKeyCharName   string = "charName" // char = characteristics
-	LgdcKeyDMUF       string = "DMUF"
-	LgdcKeyFromDate   string = "fromDate"
-	LgdcKeyToDate     string = "toDate"
-	GiroTimeFormatIn  string = "2006-01-02 15:04:05"
-	GiroTimeFormatOut string = "2006-01-02T15:04:05.000Z"
-	DefaultUrsiCode   string = "JR055"
-	SkipVerifyTLS     bool   = false
+	DefaultDMUF          string = "3000"
+	LgdcBaseURL          string = "https://lgdc.uml.edu/common/DIDBGetValues"
+	LgdcKeyUrsiCode      string = "ursiCode"
+	LgdcKeyCharName      string = "charName" // char = characteristics
+	LgdcKeyDMUF          string = "DMUF"
+	LgdcKeyFromDate      string = "fromDate"
+	LgdcKeyToDate        string = "toDate"
+	GiroTimeFormatIn     string = "2006-01-02 15:04:05"
+	GiroTimeFormatOut    string = "2006-01-02T15:04:05.000Z"
+	DefaultUrsiCode      string = "JR055"
+	DefaultSkipVerifyTLS bool   = false
 )
 
-// Configure distance for MUF (Maximum Usable Frequency (D)) when requesting the MUFD parameter
-func SetDistanceForMUF(km float64) {
-	DMUF = fmt.Sprintf("%.0f", km)
+type HFProp struct {
+	DMUF          string
+	LgdcBaseURL   string
+	UrsiCode      string
+	FromTime      time.Time
+	ToTime        time.Time
+	GiroData      []GiroData
+	SkipVerifyTLS bool
 }
 
 type GiroData struct {
 	Time      time.Time
 	Parameter string
 	Value     float64
+	instance  *HFProp
+}
+
+// New creates, configures and returns a HFProp instance. Optionally, you can
+// set which Digisonde by URSI code to use by specifying it in the variadic
+// digisonde. hfprop.DefaultUrsiCode will be the default Digisonde if option is
+// left out. FromTime defaults one hour from invocation and ToTime is the time
+// of calling New (ready to use for latest data). Use the Set* functions on
+// HFProp to change the configuration in subsequent calls to the other receiver
+// functions.
+//
+//	h := New().SetDistanceForMUF(100.0).SetWithinLastHalfHour().SetDigisonde("JR055")
+//	distance, err := h.DistanceByTOA(85.0)
+//	if err != nil {
+//		// handle error
+//	}
+//	fmt.Printf("Distance to transmitter is %.1f km\n", distance)
+func New(digisonde ...string) *HFProp {
+	ursiCode := DefaultUrsiCode
+	if len(digisonde) > 0 {
+		ursiCode = digisonde[0]
+	}
+	return &HFProp{
+		DMUF:          DefaultDMUF,
+		LgdcBaseURL:   LgdcBaseURL,
+		UrsiCode:      ursiCode,
+		FromTime:      time.Now().Add(-1 * time.Hour),
+		ToTime:        time.Now(),
+		GiroData:      make([]GiroData, 0), // Initialize slice even if nil slices work
+		SkipVerifyTLS: DefaultSkipVerifyTLS,
+	}
+}
+
+func (h *HFProp) SetDistanceForMUF(km float64) *HFProp {
+	h.DMUF = fmt.Sprintf("%.0f", km)
+	return h
+}
+
+func (h *HFProp) SetWithinLastHour() *HFProp {
+	return h.SetSinceUntilNow(1 * time.Hour)
+}
+
+func (h *HFProp) SetWithinLastFifteenMinutes() *HFProp {
+	return h.SetSinceUntilNow(15 * time.Minute)
+}
+
+func (h *HFProp) SetWithinLastHalfHour() *HFProp {
+	return h.SetSinceUntilNow(30 * time.Minute)
+}
+
+func (h *HFProp) SetSinceUntilNow(d time.Duration) *HFProp {
+	h.SetFromTime(time.Now().Add(-d))
+	return h.SetToTime(time.Now())
+}
+
+func (h *HFProp) SetFromTime(from time.Time) *HFProp {
+	h.FromTime = from
+	return h
+}
+
+func (h *HFProp) SetToTime(to time.Time) *HFProp {
+	h.ToTime = to
+	return h
+}
+
+func (h *HFProp) SetDigisonde(ursiCode string) *HFProp {
+	h.UrsiCode = ursiCode
+	return h
+}
+func (h *HFProp) SetURSI(ursiCode string) *HFProp {
+	return h.SetDigisonde(ursiCode)
+}
+
+// Configure distance for MUF (Maximum Usable Frequency (D)) when requesting the MUFD parameter
+func SetDistanceForMUF(km float64) {
+	DMUF = fmt.Sprintf("%.0f", km)
 }
 
 // GetGiroData retrieves data for a single characteristic (parameter) from the
@@ -130,7 +228,7 @@ type GiroData struct {
 //	foF2p -- foF2 prediction by IRI no-storm option
 func GetGiroData(parameter string, ursiCode string, from time.Time, to time.Time) ([]GiroData, error) {
 	gds := make([]GiroData, 0, 20)
-	u, err := url.Parse(LgdcBaseUrl)
+	u, err := url.Parse(LgdcBaseURL)
 	if err != nil {
 		return gds, err
 	}
