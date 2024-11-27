@@ -67,6 +67,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -133,6 +134,11 @@ func New(digisonde ...string) *HFProp {
 	}
 }
 
+func (h *HFProp) SetLgdcBaseURL(url string) *HFProp {
+	h.LgdcBaseURL = url
+	return h
+}
+
 func (h *HFProp) SetDistanceForMUF(km float64) *HFProp {
 	h.DMUF = fmt.Sprintf("%.0f", km)
 	return h
@@ -160,9 +166,51 @@ func (h *HFProp) SetFromTime(from time.Time) *HFProp {
 	return h
 }
 
+// SetFromTime using string formatted as in the Giro output or input
+// data, e.g:
+//
+//	GiroTimeFormatIn     string = "2006-01-02 15:04:05"
+//	GiroTimeFormatOut    string = "2006-01-02T15:04:05.000Z"
+//
+// Populates the instance's FromTime field or return error on failure.
+func (h *HFProp) SetFromTimeByGiroTimeFormatString(from string) error {
+	t, err := time.Parse(GiroTimeFormatOut, from)
+	if err != nil {
+		t2, err2 := time.Parse(GiroTimeFormatIn, from)
+		if err2 != nil {
+			return err
+		}
+		h.FromTime = t2
+		return nil
+	}
+	h.FromTime = t
+	return nil
+}
+
 func (h *HFProp) SetToTime(to time.Time) *HFProp {
 	h.ToTime = to
 	return h
+}
+
+// SetToTime using string formatted as in the Giro output or input
+// data, e.g:
+//
+//	GiroTimeFormatIn     string = "2006-01-02 15:04:05"
+//	GiroTimeFormatOut    string = "2006-01-02T15:04:05.000Z"
+//
+// Populates the instance's ToTime field or return error on failure.
+func (h *HFProp) SetToTimeByGiroTimeFormatString(to string) error {
+	t, err := time.Parse(GiroTimeFormatOut, to)
+	if err != nil {
+		t2, err2 := time.Parse(GiroTimeFormatIn, to)
+		if err2 != nil {
+			return err
+		}
+		h.ToTime = t2
+		return nil
+	}
+	h.ToTime = t
+	return nil
 }
 
 func (h *HFProp) SetDigisonde(ursiCode string) *HFProp {
@@ -173,19 +221,92 @@ func (h *HFProp) SetURSI(ursiCode string) *HFProp {
 	return h.SetDigisonde(ursiCode)
 }
 
-// Configure distance for MUF (Maximum Usable Frequency (D)) when requesting the MUFD parameter
-func SetDistanceForMUF(km float64) {
-	DMUF = fmt.Sprintf("%.0f", km)
+func (h *HFProp) GetFoF2() error {
+	return h.GetGiroData("foF2")
 }
 
-// GetGiroData retrieves data for a single characteristic (parameter) from the
-// DIDB at lgdc.uml.edu between from time and to time. Returns a slice of
-// GiroData objects or error if there was an error.
+func (h *HFProp) GetFoF1() error {
+	return h.GetGiroData("foF1")
+}
+
+func (h *HFProp) GetFoE() error {
+	return h.GetGiroData("foE")
+}
+
+func (h *HFProp) GetFxI() error {
+	return h.GetGiroData("fxI")
+}
+
+// Maximum usable frequency, 3000 km
+func (h *HFProp) GetMUFD() error {
+	return h.GetGiroData("MUFD")
+}
+
+// MD = MUF(3000)/foF2
+func (h *HFProp) GetMD() error {
+	return h.GetGiroData("MD")
+}
+
+// hF2 = Minimum virtual height of F2 trace
+func (h *HFProp) GethF2() error {
+	return h.GetGiroData("hF2")
+}
+
+// hF1 = Minimum virtual height of F1 trace
+func (h *HFProp) GethF1() error {
+	return h.GetGiroData("hF1")
+}
+
+// hF = Minimum virtual height of F trace
+func (h *HFProp) GethF() error {
+	return h.GetGiroData("hF")
+}
+
+// hE = Minimum virtual height of E trace
+func (h *HFProp) GethE() error {
+	return h.GetGiroData("hE")
+}
+
+func (h *HFProp) GetHmF2() error {
+	return h.GetGiroData("hmF2")
+}
+
+func (h *HFProp) GetHmF1() error {
+	return h.GetGiroData("hmF1")
+}
+
+func (h *HFProp) GetHmE() error {
+	return h.GetGiroData("hmE")
+}
+
+func (h *HFProp) GetFmin() error {
+	return h.GetGiroData("fmin")
+}
+
+func (h *HFProp) GetFminF() error {
+	return h.GetGiroData("fminF")
+}
+
+func (h *HFProp) GetFminE() error {
+	return h.GetGiroData("fminE")
+}
+
+func (h *HFProp) GetFoF2p() error {
+	return h.GetGiroData("foF2p")
+}
+
+// GetGiroData retrieves data for a single characteristic (parameter)
+// from the DIDB at lgdc.uml.edu between from time and to
+// time. Prepends a slice of GiroData objects to h.GiroData or error
+// if there was an error.
 //
 // Retrieve foF2 from Juliusruh (JR055) for the last hour. The gd slice is
 // reversed meaning the latest value is the first entry in the slice.
 //
-//	gd, err := hfprop.GetGiroData("foF2", "JR055", time.Now().Add(-1*time.Hour), time.Now())
+//	hfprop.SetURSI("JR055")
+//	hfprop.SetFromTime(time.Now().Add(-1*time.Hour))
+//	hfprop.SetToTime(time.Now())
+//	err := hfprop.GetGiroData("foF2")
 //
 //	# Possible Characteristics (parameters):
 //	foF2 -- F2 layer critical frequency
@@ -226,22 +347,22 @@ func SetDistanceForMUF(km float64) {
 //	fminE -- Minimum frequency of E-layer echoes
 //	fminEs -- Minimum frequency of Es-layer
 //	foF2p -- foF2 prediction by IRI no-storm option
-func GetGiroData(parameter string, ursiCode string, from time.Time, to time.Time) ([]GiroData, error) {
+func (h *HFProp) GetGiroData(parameter string) error {
 	gds := make([]GiroData, 0, 20)
 	u, err := url.Parse(LgdcBaseURL)
 	if err != nil {
-		return gds, err
+		return err
 	}
 	values := url.Values{
-		LgdcKeyUrsiCode: {ursiCode},
+		LgdcKeyUrsiCode: {h.UrsiCode},
 		LgdcKeyCharName: {parameter},
-		LgdcKeyDMUF:     {DefaultDMUF},
-		LgdcKeyFromDate: {from.UTC().Format(GiroTimeFormatIn)},
-		LgdcKeyToDate:   {to.UTC().Format(GiroTimeFormatIn)},
+		LgdcKeyDMUF:     {h.DMUF},
+		LgdcKeyFromDate: {h.FromTime.UTC().Format(GiroTimeFormatIn)},
+		LgdcKeyToDate:   {h.ToTime.UTC().Format(GiroTimeFormatIn)},
 	}
 	u.RawQuery = values.Encode()
 	transport := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: SkipVerifyTLS},
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: h.SkipVerifyTLS},
 	}
 	client := &http.Client{
 		Transport: transport,
@@ -249,11 +370,11 @@ func GetGiroData(parameter string, ursiCode string, from time.Time, to time.Time
 	}
 	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
-		return gds, err
+		return err
 	}
 	resp, err := client.Do(req)
 	if err != nil {
-		return gds, err
+		return err
 	}
 	// resp, err := http.Get(u.String())
 	// if err != nil {
@@ -270,7 +391,7 @@ func GetGiroData(parameter string, ursiCode string, from time.Time, to time.Time
 		}
 		if strings.HasPrefix(s.Text(), "ERROR: ") {
 			_, str, _ := strings.Cut(s.Text(), "ERROR: ")
-			return gds, errors.New(strings.TrimSpace(str))
+			return errors.New(strings.TrimSpace(str))
 		}
 		fields := strings.Fields(s.Text())
 		if len(fields) < 3 {
@@ -279,17 +400,18 @@ func GetGiroData(parameter string, ursiCode string, from time.Time, to time.Time
 		gd := GiroData{}
 		gd.Time, err = time.Parse(GiroTimeFormatOut, fields[0])
 		if err != nil {
-			return gds, err
+			return err
 		}
 		gd.Parameter = parameter
 		_, err = fmt.Sscanf(fields[2], "%f", &gd.Value)
 		if err != nil {
-			return gds, err
+			return err
 		}
 		gds = append(gds, gd)
 	}
 	ReverseGiroData(gds)
-	return gds, nil
+	h.GiroData = append(gds, h.GiroData...)
+	return nil
 }
 
 // ReverseGiroData reverses a GiroData slice.
@@ -306,46 +428,50 @@ func ReverseStrings(s []string) {
 	}
 }
 
-// LatestDistance predicts the distance to a transceiver based on take-off angle
-// and the latest hmF2 from default (JR055) Digisonde or the optional ursiCode
-// Digisonde. Returns distance in kilometers as float64 or error.
-func DistanceByTOA(toa float64, ursiCode ...string) (distance float64, err error) {
-	digisonde := DefaultUrsiCode
-	if len(ursiCode) > 0 {
-		digisonde = ursiCode[0]
+// Get latest value from the instance's GiroData. Returns the
+// parameter, value or error in case GiroData is empty.
+func (h *HFProp) Latest(parameter ...string) (parameterInGiroData string, value float64, err error) {
+	if len(h.GiroData) == 0 {
+		return "", 0.0, fmt.Errorf("unable to get latest data from %s", h.UrsiCode)
 	}
-	gd, err := GetGiroData("hmF2", digisonde, time.Now().Add(-1*time.Hour), time.Now())
-	if err != nil {
-		return 0.0, err
+	if len(parameter) > 0 {
+		p := parameter[0]
+		for _, gd := range h.GiroData {
+			if gd.Parameter == p {
+				return gd.Parameter, gd.Value, nil
+			}
+		}
+		return "", 0.0, fmt.Errorf("parameter not found: %x", p)
 	}
-	if len(gd) == 0 {
-		return 0.0, fmt.Errorf("unable to get latest hmF2 from %s", digisonde)
-	} else if gd[0].Value < 10.0 {
-		return 0.0, fmt.Errorf("unable to get a valid hmF2 value from %s", digisonde)
-	}
-	return Distance(toa, gd[0].Value), nil
+	return h.GiroData[0].Parameter, h.GiroData[0].Value, nil
 }
 
-// LatestTOA predicts the single-hop take-off angle in degrees to a transceiver
-// distance kilometers away based on latest hmF2 value from default (JR055)
-// Digisonde or the optional ursiCode Digisonde. Function returns the number of
-// degrees above the horizon a transmission path enters or exits the ionosphere
-// as a float64 or error if something failed.
-func LatestTOA(distance float64, ursiCode ...string) (degrees float64, err error) {
-	digisonde := DefaultUrsiCode
-	if len(ursiCode) > 0 {
-		digisonde = ursiCode[0]
+// Distance by take-off angle based on latest hmF2 value. GiroData in
+// h must have an entry where parameter is hmF2 or this will fail.
+func (h *HFProp) DistanceByTOA(toa float64) (distance float64, err error) {
+	for _, gd := range h.GiroData {
+		if gd.Parameter == "hmF2" {
+			if gd.Value < 10.0 {
+				return 0.0, fmt.Errorf("unable to get valid hmF2 value from %s", h.UrsiCode)
+			}
+			return Distance(toa, gd.Value), nil
+		}
 	}
-	gd, err := GetGiroData("hmF2", digisonde, time.Now().Add(-1*time.Hour), time.Now())
-	if err != nil {
-		return 0.0, err
+	return 0.0, errors.New("no hmF2 parameter and value in instance")
+}
+
+// LatestTOA predicts the single-hop take-off angle in degrees to a
+// transceiver distance kilometers away based on latest hmF2 value
+// from h's Digisonde (UrsiCode). Function returns the number of
+// degrees above the horizon a transmission path enters or exits the
+// ionosphere as a float64 or error if something failed.
+func (h *HFProp) LatestTOA(distance float64) (degrees float64, err error) {
+	for _, gd := range h.GiroData {
+		if gd.Parameter == "hmF2" && gd.Value > 10.0 {
+			return TOA(distance, gd.Value), nil
+		}
 	}
-	if len(gd) == 0 {
-		return 0.0, fmt.Errorf("unable to get latest hmF2 from %s", digisonde)
-	} else if gd[0].Value < 10.0 {
-		return 0.0, fmt.Errorf("unable to get a valid hmF2 value from %s", digisonde)
-	}
-	return TOA(distance, gd[0].Value), nil
+	return 0.0, fmt.Errorf("unable to get latest hmF2 from %s", h.UrsiCode)
 }
 
 // Distance predicts the distance to a transceiver based on single-hop take-off
@@ -376,4 +502,14 @@ func TOA(distance float64, hmf2 float64) (degrees float64) {
 	takeOffAngle := math.Atan((vertical+hmf2)/horizontal) - earthAngleA/2
 	degrees = takeOffAngle / math.Pi * 180
 	return
+}
+
+// FormatFloat return floating pointer num as a string with just the
+// right amount of decimals, without trailing zeroes.
+func FormatFloat(num float64) string {
+	if num == float64(int(num)) {
+		return fmt.Sprintf("%d", int(num))
+	} else {
+		return strconv.FormatFloat(num, 'f', -1, 64)
+	}
 }

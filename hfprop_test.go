@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 )
 
 var (
@@ -72,11 +71,14 @@ var (
 )
 
 func TestSetDistanceForMUF(t *testing.T) {
-	SetDistanceForMUF(100)
-	if DMUF != "100" {
-		t.Errorf("Expected 100, got %s", DMUF)
+	h := New().SetDistanceForMUF(100.0)
+	if expected, got := "100", h.DMUF; got != expected {
+		t.Errorf("Expected %s, got %s", expected, got)
 	}
-	SetDistanceForMUF(3000.0)
+	h.SetDistanceForMUF(3000.0)
+	if expected, got := "3000", h.DMUF; got != expected {
+		t.Errorf("Expected %s, got %s", expected, got)
+	}
 }
 
 func TestGetGiroData(t *testing.T) {
@@ -85,14 +87,38 @@ func TestGetGiroData(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// override base URL with our mock HTTPS server.
-	LgdcBaseUrl = server.URL
+	h := New()
 
-	gd, err := GetGiroData("hmF2", DefaultUrsiCode, time.Now().Add(-1*time.Hour), time.Now())
+	h.SetURSI("JR055") // Should be DefaultUrsiCode
+
+	// override base URL with our mock HTTPS server.
+	h.LgdcBaseURL = server.URL
+
+	if err := h.SetFromTimeByGiroTimeFormatString("2023-01-23T21:08:00.000Z"); err != nil {
+		t.Error(err)
+	}
+	if err := h.SetToTimeByGiroTimeFormatString("2023-01-23T21:13:00.000Z"); err != nil {
+		t.Error(err)
+	}
+
+	if err := h.GetGiroData("hmF2"); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(h.GiroData) < 1 {
+		t.Fatal("Expected at least one GiroData object, got none")
+	}
+
+	param, val, err := h.Latest("hmF2")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(gd) < 1 {
-		t.Fatal("Expected at least one GiroData object, got none")
+
+	if expected, got := "hmF2", param; expected != got {
+		t.Fatalf("Expected %s, got %s", expected, got)
+	}
+
+	if expected, got := 354.5, val; expected != got {
+		t.Fatalf("Expected %f, got %f", expected, got)
 	}
 }

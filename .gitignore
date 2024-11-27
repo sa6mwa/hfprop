@@ -1,2 +1,6 @@
-/t
+*.swp
+\#*\#
+*~
+/bin/
+/sshtun-*.gz
 *.exe
